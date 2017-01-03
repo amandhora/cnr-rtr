@@ -1,0 +1,23 @@
+{
+    "CliPort": 11000,
+    "Redis" :
+    {
+        "Addr" : "localhost",
+        "Port" : 10000
+    },
+    "Dsp" :
+    {
+        "Addr" : "localhost",
+        "Port" : 8000
+    },
+    "MgwSend" :
+    {
+        "Addr" : "localhost",
+        "Port" : 9001
+    },
+    "MgwRecv" :
+    {
+        "Addr" : "localhost",
+        "Port" : 9002
+    }
+}

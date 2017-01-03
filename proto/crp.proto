@@ -1,0 +1,239 @@
+// Copyright (c) Cinarra Systems 2013
+// Author: Alex Zinin (alex@cinarra.com)
+//
+// Cinarra Transaction Protocol Message definitions
+
+message BrqDevice
+{
+    optional    string      os      = 1;
+    optional    string      osv     = 2;
+    optional    string      make            = 3;
+    optional    string      model           = 4;
+    optional    uint32      browtype        = 5;
+    optional    uint32      browver         = 6;
+    optional    uint32      carrier         = 7;
+    optional    uint32      ip              = 8;
+    extensions 9 to 15;
+}
+
+message BrqSlot
+{
+    required    uint32      width           = 1;
+    required    uint32      height          = 2;
+    required    uint32      foldp           = 3;
+    required    uint64      bfiletype       = 4;
+    required    uint64      blang           = 5;
+    required    uint64      bcat            = 6;
+    required    uint64      bcontent        = 7;
+    optional    uint64      placement_id    = 8; // slot_id
+    optional    int64       min_cpm         = 9;
+    extensions 10 to 15;
+}
+
+message CnrPubCat
+{
+    optional    uint64      publisher_id        = 1;
+    optional    uint64      site_id             = 2;
+    optional    uint64      cat                 = 3;
+    optional    string      url                 = 4;
+    optional    uint64      inventory_cat       = 5;
+    extensions 6 to 10;
+}
+
+message CtpTgtAds
+{
+    required    uint64      ad_id   = 1; // Ad ID
+    repeated    uint64      cre_id  = 2; // Cr Id
+    required    uint64      obj_id  = 3; // Obj Id
+    extensions 4 to 10;
+}
+
+/*
+ * This is bitmap as we should be able to send multiple types in one var, if need.
+ */
+enum CnrFoldType
+{
+    CNR_FOLD_TYPE_UNSPECIFIED = 1;
+    CNR_FOLD_TYPE_ABOVE = 2;
+    CNR_FOLD_TYPE_BELOW = 4;
+}
+
+enum convMsgType
+{
+    CONV_TYPE_WEB   = 0;
+    CONV_TYPE_WALKIN    = 1;
+}
+
+
+//TODO: Move Conv Messages to their own file(s) in next release(s).
+message ConvHdr 
+{
+    required convMsgType    type = 1;
+    optional uint64         uid = 2;
+}
+message CapConvMsg 
+{
+    required ConvHdr    hdr = 1;
+    optional string     action = 2;
+    optional uint64      lid = 3;    //Optional, so that we do not crash when this changes in future releases.
+    optional uint64      cid = 4;    //Walk-in sends Campaign ID, not repeated because of implementation in CCS.
+    optional uint64      vid = 5;   //Venue Id
+    optional uint64     creative_id = 6;
+}
+
+// Unique Transaction ID
+message CnrUTID
+{
+    required    uint64  cpid    = 1;        // CPID of the RTB worker that owns the transaction
+    required    uint64  tid     = 2;        // Transaction ID
+}
+
+message CnrNumOpqKV
+{
+    required    uint32  key     = 1;
+    required    string  value   = 2;
+}
+
+message CnrOpqKV
+{
+    required    string  key     = 1;
+    required    string  value   = 2;
+}
+
+message CrpCookieSyncReq
+{
+    optional    string      appuid      = 1; // Appuid being sent to CMGW for appuid->DSI lookup, also used as Redis Key
+    optional    CnrUTID     trans_id    = 2; // Transaction Id needed if MS Cache is used
+}
+
+message CrpCookieSyncResp
+{
+    optional    string      appuid                      = 1; // Appuid used as key to lookup Redis
+    optional    string      appuid_list                 = 2; // List of appuids
+    optional    CnrUTID     trans_id                    = 3; // Transaction Id to lookup if MS Cache is used
+}
+
+// set of app-level user IDs used to uniquely identify an app on a device and
+// map it to the network subscriber entry.
+// NOTE: repeated values below may appear 0 or more times. If 0, it means
+//       there's no UID of that type associated with the user/device
+message CnrAppUIDs
+{
+    optional    string  user_id             = 1;
+    optional    uint32  age_cls_DEPRECATED  = 2; // DEPRECATED
+}
+
+
+message CrpOptOut
+{
+    required    string      appuid      = 1; // AppUId
+    required    bool        opt_out     = 2; // Out-out flag
+    extensions 3 to 5;
+}
+
+message CrpWinBcn
+{
+    required    string      appuid              = 1; // AppUId
+    required    uint64      campaign_item_id    = 2; // Campaign Item Id
+    required    uint64      measurement_id      = 3; // Measurement Id
+    required    uint64      creative_id         = 4; // Creative Id
+    optional    uint64      line_item_id        = 5; // Line Item Id
+}
+
+message CrpRecReq
+{
+    required    CnrUTID     trans_id    =   1;
+    required    CnrAppUIDs  app_uids    =   2;  // Appuids with hyphen as delimiter (new format)
+    required    uint32      adxid       =   3;  //  Ad  exchange    ID
+    required    uint32      debug       =   4;  //  Debug   flags
+    optional    BrqDevice   device      =   5;
+    repeated    BrqSlot     slot        =   6;
+    optional    CnrPubCat   pub     =   7;
+    repeated    CnrNumOpqKV cms_num_kv  =   8;  //  Numeric Key string Val tuples from CMS
+    required    uint32      flags       =   9;  //  Flags
+    repeated    CnrOpqKV    cms_kv      =   10; //  String Key string Val tuples from CMS
+    optional    CnrFoldType rec_fold_type =  11;
+    optional    uint32      secure        =  12;//  Secure Inventory only if set 
+}
+
+message CrpRecRep
+{
+    required    CnrUTID     trans_id    =   1;  //  orig    transaction
+    required    uint32      flags       =   2;  //  Flags
+    required    uint32      type_ad     =   3;  //  Types   Ad
+    repeated    CtpTgtAds   ads     =   4;  //  Recommended Ads
+    repeated    CnrNumOpqKV cms_ccs_num_kv  =   5;  //  Numeric Key String Val tuples from CMS or generated from CCS
+    optional    string      disc_uuid_DEPRECATED  =   6;  //  DEPRECATED
+    optional    uint64      noads_codes =   7;  //  Reason  codes
+    repeated    CnrOpqKV    cms_ccs_kv  =   8;  //  String Key String Val tuples from CMS or generated from CCS
+    required    CnrAppUIDs  app_uids    =   9;  // FIX: Appuids with hyphen as delimiter (new format)
+    extensions 10 to 16;
+}
+
+message CrpConvBcn
+{
+    required    CapConvMsg  msg = 1; //Cap Conv msg
+}
+
+enum CrpMsgType
+{
+    option allow_alias = true;
+    CRP_MSG_RES            = 0x0000;   /* reserved 0 value */
+    CRP_MSG_RECREQ         = 0x0001;   /* REC_REQ */
+    CRP_MSG_RECREP         = 0x0002;   /* REC_REP */
+    CRP_MSG_WBCN           = 0x0003;   /* WALKIN BCN MSG */
+    CRP_MSG_OPTOUT         = 0x0004;   /* OPTOUT/OPTIN MSG */
+    CRP_MSG_CONVBCN        = 0x0005;
+    CRP_MSG_COOKIESYNCREQ  = 0x0006;
+    CRP_MSG_COOKIESYNCRESP = 0x0007;
+    /* NOTE: Please update CRP_MSG_MAX below */
+    CRP_MSG_MAX            = 0x0008;	/* Maximum recognized protocol number */
+}
+
+message CrpMsg
+{
+    required    uint32            version          = 1;  //  See ctp.h
+    required    uint32            flags            = 2;  //  CTP_FLAG_XXX value from ctp.h
+    required    uint32            msg_type         = 3;  //  CTP_MSG_XXX values from ctp.h
+    //  one of the following messages, depending on the msg_type
+    optional    CrpWinBcn         win_bcn          = 4;  //  Walkin Beacon
+    optional    CrpRecReq         rec_req          = 5;  //  Recommendation Request
+    optional    CrpRecRep         rec_rep          = 6;  //  Recommendation Response
+    optional    CrpOptOut         opt_out          = 7;  //  Recommendation Response
+    optional    CrpConvBcn        conv_bcn         = 8;  //  Conversion Bcn from CCS
+    optional    CrpCookieSyncReq  cookie_sync_req  = 9;  //  Cookie Sync Request
+    optional    CrpCookieSyncResp cookie_sync_resp = 10; //  Cookie Sync Response   
+    extensions 11 to 12;
+}
+
+// Reason Code bits returned by CMGW
+enum CrpNoAdsCodes
+{
+    option allow_alias = true;
+    TGT_ONLY_SUB        =   0x00000001;
+    NULL_DSI            =   0x00000002;
+    ADM_COMM_FAIL       =   0x00000004;
+    CMGW_NO_RES         =   0x00000008;
+    CMGW_DB_FAIL        =   0x00000010;
+    DNT_DSI             =   0x00000020;
+    CATE_COMM_FAIL      =   0x00000040;
+    CMGW_RESRC_DBG_FAIL =   0x00000080;
+    CATE_COMM_DBG_FAIL  =   0x00000100;
+    CMGW_NRM_ENABLED    =   0x00000200;
+    ONE_DSI             =   0x00000400;
+}
+
+message DspReq
+{
+    optional    uint32  dsp_id              = 1;  // DSP ID
+    optional    uint64  trans_id            = 2;  // Transaction ID
+    optional    string  user_id             = 3;  // DSP User ID
+}
+
+message DspRsp
+{
+    optional    uint64  trans_id            = 1;  // Transaction ID
+    optional    string  user_id             = 2;  // DSP User ID
+    repeated    uint64  camp_item_id        = 3;  // List of Campaign Item ID's
+    optional    uint64  noads_codes         = 4;  // Reason for no bid codes
+}
