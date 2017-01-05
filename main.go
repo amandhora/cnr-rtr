@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"github.com/cinarra/cnr-atca-repo/rtr/gen/crp"
@@ -11,29 +9,12 @@ import (
 	zmq "github.com/pebbe/zmq3"
 	"log"
 	"net/http"
-	"os"
-	"regexp"
 	"time"
 )
 
 var (
 	counts = expvar.NewMap("counters")
 )
-
-// REST handle to export local metrics
-func rtrStatsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintf(w, "{\n")
-	first := true
-	counts.Do(func(kv expvar.KeyValue) {
-		if !first {
-			fmt.Fprintf(w, ",\n")
-		}
-		first = false
-		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
-}
 
 func init() {
 	http.HandleFunc("/rtr/stats", rtrStatsHandler)
@@ -121,50 +102,6 @@ func startMgwProxy() chan mgwTask {
 	return ch1
 }
 
-func mgwEmulator() {
-	//  Socket to receive messages on
-	receiver, _ := zmq.NewSocket(zmq.DEALER)
-	defer receiver.Close()
-	receiver.Bind(fmt.Sprint("tcp://*:", conf.MgwSend.Port))
-
-	//  Socket to send messages to
-	sender, _ := zmq.NewSocket(zmq.DEALER)
-	defer sender.Close()
-	sender.Bind(fmt.Sprint("tcp://*:", conf.MgwRecv.Port))
-
-	toggle := 0
-
-	//  Process tasks forever
-	for {
-		s, err := receiver.RecvBytes(0)
-		if err != nil {
-			log.Println(err)
-		} else {
-
-			req := &crp.CrpMsg{}
-			err := proto.Unmarshal(s, req)
-			if err != nil {
-				log.Fatal("unmarshaling error: ", err)
-			}
-
-			//fmt.Printf("MGW: REQ: %+v", req)
-
-			if toggle%2 == 0 {
-				log.Println("MGW: Sending REP ")
-
-				r := createRecRsp(req.RecReq.GetAppUids().GetUserId())
-				//  Send results to sink
-				sender.SendBytes(r, 0)
-
-			} else {
-				log.Println("MGW: Lets DROP ")
-			}
-		}
-
-		toggle++
-	}
-}
-
 func main() {
 	// Read config from json
 	err := readJsonConfig()
@@ -232,113 +169,6 @@ func main() {
 	fmt.Println()
 }
 
-// Send msg every second
-func dspEmulator() {
-	//  Socket to receive messages on
-	sock, _ := zmq.NewSocket(zmq.DEALER)
-	defer sock.Close()
-	sock.Bind(fmt.Sprint("tcp://*:", conf.Dsp.Port))
-
-	//  Process tasks forever
-	for {
-
-		identity := "TheAppuid"
-
-		time.Sleep(3 * time.Second)
-		//  Work generator
-		log.Println()
-		log.Println("DSP: Sending Req for User [", identity, "]")
-
-		req := createDspReq(identity)
-		// Send to RTR
-		sock.SendBytes(req, 0)
-
-		// Read from RTR
-		s, _ := sock.RecvBytes(0)
-		rsp := getDspRsp(s)
-
-		if rsp.GetNoadsCodes() != 0 {
-			log.Println("DSP: NO-REC for [", rsp.GetUserId(), "]")
-		} else {
-			log.Println("DSP: Recv Recommendation for [", rsp.GetUserId(), "]")
-			log.Println("   : ", rsp.GetCampItemId())
-		}
-	}
-}
-
-func createRecReq(s string) []byte {
-
-	recRequest := &crp.CrpRecReq{
-		Adxid: proto.Uint32(2),
-		AppUids: &crp.CnrAppUIDs{
-			UserId: proto.String(s),
-		},
-		TransId: &crp.CnrUTID{
-			Cpid: proto.Uint64(1000),
-			Tid:  proto.Uint64(2000),
-		},
-		Debug: proto.Uint32(99),
-		Flags: proto.Uint32(0),
-	}
-
-	req := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREQ)),
-		Flags:   proto.Uint32(0x00000000),
-		RecReq:  recRequest,
-	}
-
-	//fmt.Printf("RSP: %+v", req)
-
-	data, err := proto.Marshal(req)
-	if err != nil {
-		log.Fatal("marshaling error: ", err)
-	}
-
-	return data
-}
-
-func createRecRsp(s string) []byte {
-
-	recResponse := &crp.CrpRecRep{
-		AppUids: &crp.CnrAppUIDs{
-			UserId: proto.String(s),
-		},
-		TransId: &crp.CnrUTID{
-			Cpid: proto.Uint64(1000),
-			Tid:  proto.Uint64(2000),
-		},
-		Ads: []*crp.CtpTgtAds{
-			&crp.CtpTgtAds{
-				AdId:  proto.Uint64(50000000001),
-				ObjId: proto.Uint64(10),
-			},
-			&crp.CtpTgtAds{
-				AdId:  proto.Uint64(50000000002),
-				ObjId: proto.Uint64(10),
-			},
-		},
-		TypeAd: proto.Uint32(99),
-		Flags:  proto.Uint32(0),
-	}
-
-	rsp := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREP)),
-		Flags:   proto.Uint32(0x00000000),
-		RecRep:  recResponse,
-	}
-
-	//fmt.Printf("RSP: %+v", rsp)
-
-	data, err := proto.Marshal(rsp)
-	if err != nil {
-		log.Fatal("rec rsp marshaling error: ", err)
-	}
-
-	return data
-}
-
 func getRecRsp(data []byte) *crp.CrpMsg {
 
 	recResp := &crp.CrpMsg{}
@@ -350,111 +180,6 @@ func getRecRsp(data []byte) *crp.CrpMsg {
 	//log.Printf("Unmarshalled to: %+v", recResp)
 
 	return recResp
-}
-
-func setCacheEntry(c redis.Conn, app string, value []byte) error {
-
-	_, err := c.Do("SET", app, value, "EX", 10)
-	if err != nil {
-		log.Print(err)
-	}
-
-	return err
-}
-
-func getCacheEntry(c redis.Conn, app string) ([]byte, error) {
-
-	//data, err := redis.String(c.Do("GET", app))
-	data, err := redis.Bytes(c.Do("GET", app))
-
-	//fmt.Println("REDIS: ", app)
-
-	return data, err
-}
-
-func initCliExp() (*regexp.Regexp, error) {
-	re, err := regexp.Compile("^show rtr stats")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	//fmt.Println(re.FindStringSubmatch("set rtr stats"))
-	//fmt.Println(re.FindStringSubmatch("lets show rtr stats"))
-	return re, err
-}
-
-func executeCliCmd(re *regexp.Regexp, cmd string) string {
-
-	//fmt.Println("CLI: ", cmd)
-	rsp := "Not Found"
-
-	exec := re.FindStringSubmatch(cmd)
-	if len(exec) != 0 {
-		buf := new(bytes.Buffer)
-		counts.Do(func(kv expvar.KeyValue) {
-			fmt.Fprintf(buf, "\n%q: %s", kv.Key, kv.Value)
-		})
-		rsp = buf.String()
-	}
-
-	return rsp
-}
-
-func cliEmulator() {
-
-	//  Socket to receive messages on
-	sock, _ := zmq.NewSocket(zmq.DEALER)
-	defer sock.Close()
-	sock.Connect(fmt.Sprint("tcp://localhost:", conf.CliPort))
-
-	cmd := "show rtr stats"
-	//  Process tasks forever
-	for {
-
-		//  Periodic CLI cmd generator
-		time.Sleep(20 * time.Second)
-
-		// Send to RTR
-		sock.Send(cmd, 0)
-
-		// Read from RTR
-		resp, _ := sock.Recv(0)
-		fmt.Println("*********************************")
-		fmt.Println("CLI CMD: ", cmd)
-		fmt.Println("CLI RSP: ", resp)
-		fmt.Println("*********************************")
-	}
-}
-
-type ConnectConf struct {
-	Addr string
-	Port int
-}
-
-type Configuration struct {
-	CliPort int
-	Redis   ConnectConf
-	Dsp     ConnectConf
-	MgwSend ConnectConf
-	MgwRecv ConnectConf
-}
-
-var conf Configuration
-
-func readJsonConfig() error {
-	file, _ := os.Open("rtr_conf.json")
-	decoder := json.NewDecoder(file)
-
-	err := decoder.Decode(&conf)
-	if err != nil {
-		fmt.Println("Failed to Read Config:", err)
-	} else {
-		fmt.Println("*********************************")
-		fmt.Printf("CONFIG: %v\n", conf)
-		fmt.Println("*********************************")
-	}
-
-	return err
 }
 
 type mgwRsp struct {
@@ -561,91 +286,4 @@ func handleDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
 		counts.Add("DSP Send NoRec", 1)
 	}
 
-}
-
-func createDspReq(s string) []byte {
-
-	req := &crp.DspReq{
-		DspId:   proto.Uint32(1),
-		TransId: proto.Uint64(0x000000001000),
-		UserId:  proto.String(s),
-	}
-
-	//fmt.Printf("RSP: %+v", req)
-
-	data, err := proto.Marshal(req)
-	if err != nil {
-		log.Fatal("Dsp req marshaling error: ", err)
-	}
-
-	return data
-}
-
-func getDspReq(req []byte) *crp.DspReq {
-
-	//fmt.Printf("RSP: %+v", req)
-
-	data := &crp.DspReq{}
-
-	err := proto.Unmarshal(req, data)
-	if err != nil {
-		log.Fatal("unmarshaling error: ", err)
-	}
-
-	return data
-}
-
-func createDspRspNoRec(s string) []byte {
-
-	rsp := &crp.DspRsp{
-		UserId:     proto.String(s),
-		NoadsCodes: proto.Uint64(1),
-	}
-
-	//fmt.Printf("RSP: %+v", rsp)
-
-	data, err := proto.Marshal(rsp)
-	if err != nil {
-		log.Fatal("unmarshaling error: ", err)
-	}
-
-	return data
-}
-
-func createDspRsp(r *crp.CrpRecRep) []byte {
-
-	rsp := &crp.DspRsp{
-		UserId: proto.String(r.GetAppUids().GetUserId()),
-	}
-
-	// Populate campaign Item list
-	c := r.GetAds()
-	rsp.CampItemId = make([]uint64, len(c))
-
-	for i, cid := range c {
-		rsp.CampItemId[i] = cid.GetAdId()
-	}
-
-	//fmt.Printf("RSP: %+v", rsp)
-
-	data, err := proto.Marshal(rsp)
-	if err != nil {
-		log.Fatal("marshaling error: ", err)
-	}
-
-	return data
-}
-
-func getDspRsp(rsp []byte) *crp.DspRsp {
-
-	//fmt.Printf("RSP: %+v", rsp)
-
-	data := &crp.DspRsp{}
-
-	err := proto.Unmarshal(rsp, data)
-	if err != nil {
-		log.Fatal("unmarshaling error: ", err)
-	}
-
-	return data
 }
