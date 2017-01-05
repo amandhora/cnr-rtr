@@ -1,7 +1,6 @@
 package main
 
 import (
-	"expvar"
 	"fmt"
 	"github.com/cinarra/cnr-atca-repo/rtr/gen/crp"
 	"github.com/garyburd/redigo/redis"
@@ -10,10 +9,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-)
-
-var (
-	counts = expvar.NewMap("counters")
 )
 
 func init() {
@@ -169,19 +164,6 @@ func main() {
 	fmt.Println()
 }
 
-func getRecRsp(data []byte) *crp.CrpMsg {
-
-	recResp := &crp.CrpMsg{}
-	err := proto.Unmarshal(data, recResp)
-	if err != nil {
-		log.Fatal("rec rsp unmarshaling error: ", err)
-	}
-
-	//log.Printf("Unmarshalled to: %+v", recResp)
-
-	return recResp
-}
-
 type mgwRsp struct {
 	recRsp     *crp.CrpMsg
 	identifier string
@@ -235,7 +217,7 @@ func handleDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
 			log.Println("RTR: *** cache MISS ***")
 			//  Do the work
 
-			recReq := createRecReq(appuid)
+			recReq := createSimRecReq(appuid)
 
 			//  Send results to MGW
 			task2 := mgwTask{

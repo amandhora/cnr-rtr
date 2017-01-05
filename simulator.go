@@ -74,7 +74,7 @@ func mgwEmulator() {
 			if toggle%2 == 0 {
 				log.Println("MGW: Sending REP ")
 
-				r := createRecRsp(req.RecReq.GetAppUids().GetUserId())
+				r := createSimRecRsp(req.RecReq.GetAppUids().GetUserId())
 				//  Send results to sink
 				sender.SendBytes(r, 0)
 
@@ -111,77 +111,4 @@ func cliEmulator() {
 		fmt.Println("CLI RSP: ", resp)
 		fmt.Println("*********************************")
 	}
-}
-
-func createRecReq(s string) []byte {
-
-	recRequest := &crp.CrpRecReq{
-		Adxid: proto.Uint32(2),
-		AppUids: &crp.CnrAppUIDs{
-			UserId: proto.String(s),
-		},
-		TransId: &crp.CnrUTID{
-			Cpid: proto.Uint64(1000),
-			Tid:  proto.Uint64(2000),
-		},
-		Debug: proto.Uint32(99),
-		Flags: proto.Uint32(0),
-	}
-
-	req := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREQ)),
-		Flags:   proto.Uint32(0x00000000),
-		RecReq:  recRequest,
-	}
-
-	//fmt.Printf("RSP: %+v", req)
-
-	data, err := proto.Marshal(req)
-	if err != nil {
-		log.Fatal("marshaling error: ", err)
-	}
-
-	return data
-}
-
-func createRecRsp(s string) []byte {
-
-	recResponse := &crp.CrpRecRep{
-		AppUids: &crp.CnrAppUIDs{
-			UserId: proto.String(s),
-		},
-		TransId: &crp.CnrUTID{
-			Cpid: proto.Uint64(1000),
-			Tid:  proto.Uint64(2000),
-		},
-		Ads: []*crp.CtpTgtAds{
-			&crp.CtpTgtAds{
-				AdId:  proto.Uint64(50000000001),
-				ObjId: proto.Uint64(10),
-			},
-			&crp.CtpTgtAds{
-				AdId:  proto.Uint64(50000000002),
-				ObjId: proto.Uint64(10),
-			},
-		},
-		TypeAd: proto.Uint32(99),
-		Flags:  proto.Uint32(0),
-	}
-
-	rsp := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREP)),
-		Flags:   proto.Uint32(0x00000000),
-		RecRep:  recResponse,
-	}
-
-	//fmt.Printf("RSP: %+v", rsp)
-
-	data, err := proto.Marshal(rsp)
-	if err != nil {
-		log.Fatal("rec rsp marshaling error: ", err)
-	}
-
-	return data
 }

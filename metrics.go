@@ -6,6 +6,11 @@ import (
 	"net/http"
 )
 
+/* STATS containers */
+var (
+	counts = expvar.NewMap("counters")
+)
+
 // REST handle to export local metrics
 func rtrStatsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
