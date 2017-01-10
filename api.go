@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/cinarra/cnr-atca-repo/rtr/gen/crp"
+	"github.com/cinarra/cnr-rtr/gen/crp"
 	"github.com/golang/protobuf/proto"
 	"log"
 )
@@ -55,7 +55,7 @@ func createDspRspNoRec(s string) []byte {
 	return data
 }
 
-func createDspRsp(r *crp.CrpRecRep) []byte {
+func createDspRsp(r *crp.CrpRecRepV2) []byte {
 
 	rsp := &crp.DspRsp{
 		UserId: proto.String(r.GetAppUids().GetUserId()),
@@ -108,7 +108,7 @@ func getRecRsp(data []byte) *crp.CrpMsg {
 
 func createSimRecReq(s string) []byte {
 
-	recRequest := &crp.CrpRecReq{
+	recRequest := &crp.CrpRecReqV2{
 		Adxid: proto.Uint32(2),
 		AppUids: &crp.CnrAppUIDs{
 			UserId: proto.String(s),
@@ -122,10 +122,10 @@ func createSimRecReq(s string) []byte {
 	}
 
 	req := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREQ)),
-		Flags:   proto.Uint32(0x00000000),
-		RecReq:  recRequest,
+		Version:  proto.Uint32(0x00000001),
+		MsgType:  proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREQ)),
+		Flags:    proto.Uint32(0x00000000),
+		RecReqV2: recRequest,
 	}
 
 	//fmt.Printf("RSP: %+v", req)
@@ -140,7 +140,7 @@ func createSimRecReq(s string) []byte {
 
 func createSimRecRsp(s string) []byte {
 
-	recResponse := &crp.CrpRecRep{
+	recResponse := &crp.CrpRecRepV2{
 		AppUids: &crp.CnrAppUIDs{
 			UserId: proto.String(s),
 		},
@@ -163,10 +163,10 @@ func createSimRecRsp(s string) []byte {
 	}
 
 	rsp := &crp.CrpMsg{
-		Version: proto.Uint32(0x00000001),
-		MsgType: proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREP)),
-		Flags:   proto.Uint32(0x00000000),
-		RecRep:  recResponse,
+		Version:  proto.Uint32(0x00000001),
+		MsgType:  proto.Uint32(uint32(crp.CrpMsgType_CRP_MSG_RECREP)),
+		Flags:    proto.Uint32(0x00000000),
+		RecRepV2: recResponse,
 	}
 
 	//fmt.Printf("RSP: %+v", rsp)

@@ -2,15 +2,28 @@ package main
 
 import (
 	"fmt"
-	"github.com/cinarra/cnr-atca-repo/rtr/gen/crp"
+	"github.com/cinarra/cnr-rtr/gen/crp"
 	"github.com/golang/protobuf/proto"
 	zmq "github.com/pebbe/zmq3"
 	"log"
 	"time"
 )
 
+/* Start Simulators for testing */
+func startSimulators(conf *Configuration) {
+
+	/* If Config is configured to start simulators */
+	if conf.SimStart {
+
+		go dspEmulator(conf)
+		go mgwEmulator(conf)
+		go cliEmulator(conf)
+	}
+
+}
+
 // Send msg every second
-func dspEmulator() {
+func dspEmulator(conf *Configuration) {
 	//  Socket to receive messages on
 	sock, _ := zmq.NewSocket(zmq.DEALER)
 	defer sock.Close()
@@ -42,7 +55,7 @@ func dspEmulator() {
 		}
 	}
 }
-func mgwEmulator() {
+func mgwEmulator(conf *Configuration) {
 
 	//  Socket to receive messages on
 	receiver, _ := zmq.NewSocket(zmq.DEALER)
@@ -72,9 +85,10 @@ func mgwEmulator() {
 			//fmt.Printf("MGW: REQ: %+v", req)
 
 			if toggle%2 == 0 {
-				log.Println("MGW: Sending REP ")
+				appuid := req.RecReqV2.GetAppUids().GetUserId()
+				log.Println("MGW: Sending REP ", appuid)
 
-				r := createSimRecRsp(req.RecReq.GetAppUids().GetUserId())
+				r := createSimRecRsp(appuid)
 				//  Send results to sink
 				sender.SendBytes(r, 0)
 
@@ -87,14 +101,15 @@ func mgwEmulator() {
 	}
 }
 
-func cliEmulator() {
+func cliEmulator(conf *Configuration) {
 
 	//  Socket to receive messages on
 	sock, _ := zmq.NewSocket(zmq.DEALER)
 	defer sock.Close()
 	sock.Connect(fmt.Sprint("tcp://localhost:", conf.CliPort))
 
-	cmd := "show rtr stats"
+	cmd1 := "show rtr stats"
+	cmd2 := "show rtr config"
 	//  Process tasks forever
 	for {
 
@@ -102,12 +117,22 @@ func cliEmulator() {
 		time.Sleep(20 * time.Second)
 
 		// Send to RTR
-		sock.Send(cmd, 0)
+		sock.Send(cmd1, 0)
 
 		// Read from RTR
 		resp, _ := sock.Recv(0)
 		fmt.Println("*********************************")
-		fmt.Println("CLI CMD: ", cmd)
+		fmt.Println("CLI CMD: ", cmd1)
+		fmt.Println("CLI RSP: ", resp)
+		fmt.Println("*********************************")
+
+		// Send to RTR
+		sock.Send(cmd2, 0)
+
+		// Read from RTR
+		resp, _ = sock.Recv(0)
+		fmt.Println("*********************************")
+		fmt.Println("CLI CMD: ", cmd2)
 		fmt.Println("CLI RSP: ", resp)
 		fmt.Println("*********************************")
 	}

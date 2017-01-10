@@ -203,7 +203,39 @@ message CrpMsg
     optional    CrpConvBcn        conv_bcn         = 8;  //  Conversion Bcn from CCS
     optional    CrpCookieSyncReq  cookie_sync_req  = 9;  //  Cookie Sync Request
     optional    CrpCookieSyncResp cookie_sync_resp = 10; //  Cookie Sync Response   
-    extensions 11 to 12;
+    optional    CrpRecReqV2       rec_req_v2       = 11; //  Recommendation Request V2
+    optional    CrpRecRepV2       rec_rep_v2       = 12; //  Recommendation Response V2
+}
+
+message CrpRecReqV2
+{
+    optional    CnrUTID     trans_id    =   1;
+    optional    CnrAppUIDs  app_uids    =   2;  // Appuids with hyphen as delimiter (new format)
+    optional    uint32      adxid       =   3;  //  Ad  exchange    ID
+    optional    uint32      debug       =   4;  //  Debug   flags
+    optional    BrqDevice   device      =   5;
+    repeated    BrqSlot     slot        =   6;
+    optional    CnrPubCat   pub     =   7;
+    repeated    CnrNumOpqKV cms_num_kv  =   8;  //  Numeric Key string Val tuples from CMS
+    optional    uint32      flags       =   9;  //  Flags
+    repeated    CnrOpqKV    cms_kv      =   10; //  String Key string Val tuples from CMS
+    optional    CnrFoldType rec_fold_type =  11;
+    optional    uint32      secure        =  12;//  Secure Inventory only if set
+    optional    uint32      dsp_id        =  13;  //  ID of DSP which sent request
+}
+
+message CrpRecRepV2
+{
+    optional    CnrUTID     trans_id    =   1;  //  orig    transaction
+    optional    uint32      flags       =   2;  //  Flags
+    optional    uint32      type_ad     =   3;  //  Types   Ad
+    repeated    CtpTgtAds   ads     =   4;  //  Recommended Ads
+    repeated    CnrNumOpqKV cms_ccs_num_kv  =   5;  //  Numeric Key String Val tuples from CMS or generated from CCS
+    optional    string      disc_uuid_DEPRECATED  =   6;  //  DEPRECATED
+    optional    uint64      noads_codes =   7;  //  Reason  codes
+    repeated    CnrOpqKV    cms_ccs_kv  =   8;  //  String Key String Val tuples from CMS or generated from CCS
+    optional    CnrAppUIDs  app_uids    =   9;
+    optional    uint32      dsp_id      =   10;  //  ID of DSP where return response
 }
 
 // Reason Code bits returned by CMGW

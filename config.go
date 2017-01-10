@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -13,28 +14,36 @@ type ConnectConf struct {
 
 /* Struct for storing config read from JSON file */
 type Configuration struct {
-	CliPort int
-	Redis   ConnectConf
-	Dsp     ConnectConf
-	MgwSend ConnectConf
-	MgwRecv ConnectConf
+	SimStart  bool
+	DspWrkCnt int
+	CcsWrkCnt int
+	CliPort   int
+	Redis     ConnectConf
+	Dsp       ConnectConf
+	MgwSend   ConnectConf
+	MgwRecv   ConnectConf
 }
 
-/* Global - To store RTR config */
-var conf Configuration
+func readJsonConfig(configfile string) (Configuration, error) {
 
-func readJsonConfig() error {
-	file, _ := os.Open("rtr_conf.json")
+	/* To store RTR config */
+	var conf Configuration
+
+	file, err := os.Open(configfile)
+	if err != nil {
+		log.Fatal("Config file is missing: ", configfile)
+	}
+
 	decoder := json.NewDecoder(file)
 
-	err := decoder.Decode(&conf)
+	err = decoder.Decode(&conf)
 	if err != nil {
 		fmt.Println("Failed to Read Config:", err)
 	} else {
 		fmt.Println("*********************************")
-		fmt.Printf("CONFIG: %v\n", conf)
+		fmt.Printf("CONFIG:\n  %+v\n", conf)
 		fmt.Println("*********************************")
 	}
 
-	return err
+	return conf, err
 }

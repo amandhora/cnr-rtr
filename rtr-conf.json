@@ -19,5 +19,8 @@
     {
         "Addr" : "localhost",
         "Port" : 9002
-    }
+    },
+    "DspWrkCnt" : 1000,
+    "CcsWrkCnt" : 1000,
+    "SimStart" : true
 }

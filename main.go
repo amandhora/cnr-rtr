@@ -2,21 +2,83 @@ package main
 
 import (
 	"fmt"
-	"github.com/cinarra/cnr-atca-repo/rtr/gen/crp"
 	"github.com/garyburd/redigo/redis"
-	"github.com/golang/protobuf/proto"
-	zmq "github.com/pebbe/zmq3"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
 	"time"
+)
+
+var (
+	ConfigFile string = "rtr-conf.json"
+	LogFile    string = "rtr.log"
 )
 
 func init() {
 	http.HandleFunc("/rtr/stats", rtrStatsHandler)
 	counts.Set("StartTime", time.Now())
-
 }
 
+func main() {
+
+	fd, err := os.OpenFile(LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("error opening file: %v", err)
+	}
+	defer fd.Close()
+
+	log.SetOutput(fd)
+	log.Println("Logger Initialized")
+
+	// Read config from json
+	conf, err := readJsonConfig(ConfigFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Connect to redis server
+	//rConn, err := redis.Dial("tcp", ":10000")
+	rConn, err := redis.Dial("tcp", conf.Redis.Addr+":"+strconv.Itoa(conf.Redis.Port))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go func() {
+		http.ListenAndServe(":8080", http.DefaultServeMux)
+	}()
+
+	// Start Emulators
+	startSimulators(&conf)
+
+	// Start CLI Worker
+	go startCliLoop(&conf)
+
+	// Start Backend Worker
+	go startBackEndLoop(&conf, rConn)
+
+	// Start FrontEnd Worker
+	go startFrontEndLoop(&conf, rConn)
+
+	// Catch Ctrl + C
+	signalChan := make(chan os.Signal, 1)
+	cleanupDone := make(chan bool)
+	signal.Notify(signalChan, os.Interrupt)
+
+	go func() {
+		for _ = range signalChan {
+			log.Println("\nReceived an interrupt, stopping services...\n")
+			//cleanup(services, c)
+			cleanupDone <- true
+		}
+	}()
+
+	// Block main routine till we receive signal
+	<-cleanupDone
+}
+
+/*
 func mgwReceiver(ch chan mgwRsp) {
 
 	//  Socket to receive messages for MGW
@@ -97,73 +159,6 @@ func startMgwProxy() chan mgwTask {
 	return ch1
 }
 
-func main() {
-	// Read config from json
-	err := readJsonConfig()
-	if err != nil {
-		panic(err)
-	}
-
-	c, err := redis.Dial("tcp", ":10000")
-	if err != nil {
-		log.Print(err)
-	}
-
-	go func() {
-		http.ListenAndServe(":8080", http.DefaultServeMux)
-	}()
-
-	//  Socket to receive messages for DSP
-	dspSock, _ := zmq.NewSocket(zmq.DEALER)
-	defer dspSock.Close()
-	dspSock.Connect(fmt.Sprint("tcp://", conf.Dsp.Addr, ":", conf.Dsp.Port))
-
-	//  Socket to send messages to MGW
-	mgwSender, _ := zmq.NewSocket(zmq.DEALER)
-	defer mgwSender.Close()
-	mgwSender.Connect(fmt.Sprint("tcp://", conf.MgwSend.Addr, ":", conf.MgwSend.Port))
-
-	//  Socket for CLI input
-	re, err := initCliExp()
-	cliSock, _ := zmq.NewSocket(zmq.ROUTER)
-	defer cliSock.Close()
-	cliSock.Bind(fmt.Sprint("tcp://*:", conf.CliPort))
-
-	// Start Emulators
-	ch := startMgwProxy()
-	go dspEmulator()
-	go mgwEmulator()
-	go cliEmulator()
-
-	//  Process messages from all Emulators
-	poller := zmq.NewPoller()
-	poller.Add(dspSock, zmq.POLLIN)
-	//poller.Add(mgwReceiver, zmq.POLLIN)
-	poller.Add(cliSock, zmq.POLLIN)
-
-	//  Process messages from all sockets
-	for {
-		sockets, _ := poller.Poll(-1)
-		for _, socket := range sockets {
-			switch s := socket.Socket; s {
-			case dspSock:
-
-				// Received request from DSP
-				handleDspReq(s, c, ch)
-
-			case cliSock:
-				identity, _ := cliSock.Recv(0)
-				cmd, _ := cliSock.Recv(0)
-				rsp := executeCliCmd(re, cmd)
-				cliSock.Send(identity, zmq.SNDMORE)
-				cliSock.Send(rsp, 0)
-
-			}
-		}
-	}
-	fmt.Println()
-}
-
 type mgwRsp struct {
 	recRsp     *crp.CrpMsg
 	identifier string
@@ -175,7 +170,7 @@ type mgwTask struct {
 	recReq     []byte
 }
 
-func handleDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
+func procDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
 
 	ch2 := make(chan mgwRsp, 1)
 	ch3 := make(chan mgwRsp, 1)
@@ -236,13 +231,13 @@ func handleDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
 	select {
 	case rsp := <-ch2:
 
-		dspRsp := createDspRsp(rsp.recRsp.GetRecRep())
+		dspRsp := createDspRsp(rsp.recRsp.GetRecRepV2())
 		dspSock.SendBytes(dspRsp, 0)
 		counts.Add("DSP Send Rec", 1)
 
 	case rsp := <-ch3:
 
-		dspRsp := createDspRsp(rsp.recRsp.GetRecRep())
+		dspRsp := createDspRsp(rsp.recRsp.GetRecRepV2())
 		dspSock.SendBytes(dspRsp, 0)
 		counts.Add("DSP Send Rec", 1)
 
@@ -269,3 +264,4 @@ func handleDspReq(dspSock *zmq.Socket, c redis.Conn, ch1 chan mgwTask) {
 	}
 
 }
+*/
